@@ -3,7 +3,7 @@ struct Globals {
     cursor_x: f32,
     cursor_y: f32,
 }
-@group(1) @binding(0)
+@group(0) @binding(0)
 var<uniform> globals: Globals;
 
 struct VertexOutput {
@@ -41,9 +41,9 @@ fn vertex(
     return out;
 }
 
-@group(0) @binding(0)
+@group(1) @binding(0)
 var t_diffuse: texture_2d<f32>;
-@group(0) @binding(1)
+@group(1) @binding(1)
 var s_diffuse: sampler;
 
 @fragment

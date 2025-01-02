@@ -1,9 +1,11 @@
 mod post_processing;
+mod scene;
 mod shader_globals;
 mod texture;
 
 use chrono::{DateTime, Utc};
 use post_processing::PostProcessing;
+use scene::Scene;
 use shader_globals::Globals;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -129,12 +131,11 @@ struct State<'a> {
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
     window: &'a Window,
-    render_pipeline: wgpu::RenderPipeline,
-    diffuse_bind_group: wgpu::BindGroup,
     start_time: DateTime<Utc>,
     globals: Globals,
     globals_buffer: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
+    scene: Scene,
     post_processing: PostProcessing,
 }
 
@@ -183,48 +184,6 @@ impl<'a> State<'a> {
             .await
             .unwrap();
 
-        let diffuse_bytes = include_bytes!("xsware_brand.png");
-        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "xsware_brand.png");
-
-        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    // This should match the filterable field of the
-                    // corresponding Texture entry above.
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("texture_bind_group_layout"),
-        });
-
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: Some("diffuse_bind_group"),
-        });
-
         let surface_caps = surface.get_capabilities(&adapter);
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different
         // one will result in all the colors coming out darker. If you want to support non
@@ -246,8 +205,6 @@ impl<'a> State<'a> {
             desired_maximum_frame_latency: 2,
         };
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/scene.wgsl"));
-
         let start_time = chrono::Utc::now();
         let globals = Globals::new();
 
@@ -268,52 +225,7 @@ impl<'a> State<'a> {
             }],
         });
 
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&texture_bind_group_layout, &globals_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vertex",
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fragment",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
+        let scene = Scene::new(&device, &queue, config.format, &globals_bind_group_layout);
 
         let post_processing = PostProcessing::new(&device, config.format, &globals_bind_group_layout);
 
@@ -324,12 +236,11 @@ impl<'a> State<'a> {
             queue,
             config,
             size,
-            render_pipeline,
-            diffuse_bind_group,
             start_time,
             globals,
             globals_buffer,
             globals_bind_group,
+            scene,
             post_processing,
         }
     }
@@ -359,6 +270,7 @@ impl<'a> State<'a> {
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let screen = self.surface.get_current_texture()?;
         let screen_texture = &screen.texture;
+        let screen_view = screen_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
 
         // create a view that only lives in memory and is not displayed on the screen
         let in_memory_texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -376,39 +288,13 @@ impl<'a> State<'a> {
             label: Some("Render Encoder"),
         });
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &in_memory_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.01,
-                            g: 0.01,
-                            b: 0.01,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.globals_bind_group, &[]);
+        // first render pass - create the scene
+        self.scene.render_pass(&mut encoder, &in_memory_view, &self.globals_bind_group)?;
 
-            render_pass.draw(0..6, 0..1);
-        }
-
-        let screen_view = screen_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
-
+        // second render pass - apply post processing effects to the scene
         self.post_processing
             .render_pass(&self.device, &mut encoder, &in_memory_view, &screen_view, &self.globals_bind_group)?;
 
-        // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
         screen.present();
 
