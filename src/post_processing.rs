@@ -96,6 +96,8 @@ impl PostProcessing {
         }
     }
 
+    /// copies the the texture from the src_view and applies the
+    /// post processing shader effect before pushing it to the dst_view
     pub fn render_pass(
         &self,
         device: &wgpu::Device,
