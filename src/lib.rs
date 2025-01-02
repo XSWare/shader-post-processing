@@ -276,6 +276,14 @@ impl<'a> State<'a> {
             wave_distortion_shader,
         ));
 
+        let droplet_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing_droplet.wgsl"));
+        post_processing_effects.push(PostProcessing::new(
+            &device,
+            config.format,
+            &globals_bind_group_layout,
+            droplet_shader,
+        ));
+
         Self {
             window,
             surface,
