@@ -10,7 +10,11 @@ The first render pass works with an "in-memory" view that is not yet put on the 
 The second render pass applies the post processing effect and outputs it to the screen view.
 For details check the `render` function in [lib.rs](src/lib.rs#270) and the `render_pass` function in [post_processing.rs](src/post_processing.rs#101)
 
-## Building the project
+## Run the project
+
+run natively: `cargo run`
+
+## Host the project as a website
 
 build javascript/wasm: `wasm-pack build --release --target web`  
 host with http server: `python3 -m http.server`
