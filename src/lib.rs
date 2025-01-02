@@ -334,7 +334,7 @@ impl<'a> State<'a> {
             cache: None,
         });
 
-        let post_processing = PostProcessing::new(&device, config.format, &globals);
+        let post_processing = PostProcessing::new(&device, config.format, &globals_bind_group_layout);
 
         Self {
             window,
@@ -373,13 +373,12 @@ impl<'a> State<'a> {
     fn update(&mut self) {
         self.globals.time = (chrono::Utc::now() - self.start_time).num_milliseconds() as f32 / 1000.;
         self.queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&self.globals));
-        self.post_processing.update(&self.queue, &self.globals);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let screen = self.surface.get_current_texture()?;
         let screen_texture = &screen.texture;
-        
+
         // create a view that only lives in memory and is not displayed on the screen
         let in_memory_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("initial render pass canvas"),
@@ -449,7 +448,7 @@ impl<'a> State<'a> {
         let screen_view = screen_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
 
         self.post_processing
-            .render_pass(&self.device, &mut encoder, &in_memory_view, &screen_view)?;
+            .render_pass(&self.device, &mut encoder, &in_memory_view, &screen_view, &self.globals_bind_group)?;
 
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));

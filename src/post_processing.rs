@@ -1,35 +1,12 @@
-use wgpu::util::DeviceExt;
-
-use crate::shader_globals::{self, Globals};
-
 pub struct PostProcessing {
     render_pipeline: wgpu::RenderPipeline,
-    globals_buffer: wgpu::Buffer,
-    globals_bind_group: wgpu::BindGroup,
     texture_bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
 }
 
 impl PostProcessing {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, globals: &Globals) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, globals_bind_group_layout: &wgpu::BindGroupLayout) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing.wgsl"));
-
-        let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("globals buffer"),
-            contents: bytemuck::bytes_of(globals),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let globals_bind_group_layout = device.create_bind_group_layout(shader_globals::BIND_GROUP_LAYOUT);
-
-        let globals_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("globals bind group"),
-            layout: &globals_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: globals_buffer.as_entire_binding(),
-            }],
-        });
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -67,7 +44,7 @@ impl PostProcessing {
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("post processing render pipeline layout"),
-            bind_group_layouts: &[&globals_bind_group_layout, &texture_bind_group_layout],
+            bind_group_layouts: &[globals_bind_group_layout, &texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -114,15 +91,9 @@ impl PostProcessing {
 
         Self {
             render_pipeline,
-            globals_buffer,
-            globals_bind_group,
             texture_bind_group_layout,
             sampler,
         }
-    }
-
-    pub fn update(&self, queue: &wgpu::Queue, globals: &Globals) {
-        queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(globals));
     }
 
     pub fn render_pass(
@@ -131,6 +102,7 @@ impl PostProcessing {
         encoder: &mut wgpu::CommandEncoder,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
+        globals_bind_group: &wgpu::BindGroup,
     ) -> Result<(), wgpu::SurfaceError> {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("post processing render pass"),
@@ -148,7 +120,7 @@ impl PostProcessing {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.globals_bind_group, &[]);
+        render_pass.set_bind_group(0, globals_bind_group, &[]);
         render_pass.set_bind_group(1, &self.create_texture_bind_group(device, src_view), &[]);
         render_pass.draw(0..6, 0..1);
 
