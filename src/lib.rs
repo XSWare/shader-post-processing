@@ -1,15 +1,11 @@
 mod post_processing;
-mod rectangle;
 mod shader_globals;
 mod texture;
-mod vertex;
 
 use chrono::{DateTime, Utc};
 use post_processing::PostProcessing;
-use rectangle::Rectangle;
 use shader_globals::Globals;
-use vertex::Vertex;
-use wgpu::{util::DeviceExt, VertexBufferLayout};
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -284,22 +280,7 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vertex",
-                buffers: &[VertexBufferLayout {
-                    array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            offset: 0,
-                            shader_location: 0,
-                            format: wgpu::VertexFormat::Float32x2,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: size_of::<[f32; 2]>() as wgpu::BufferAddress,
-                            shader_location: 1,
-                            format: wgpu::VertexFormat::Float32x2,
-                        },
-                    ],
-                }],
+                buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -419,30 +400,7 @@ impl<'a> State<'a> {
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.globals_bind_group, &[]);
 
-            let indices = &Rectangle::get_indices();
-            let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-
-            let vertices = Rectangle {
-                top: 1.0,
-                left: -1.0,
-                height: 2.0,
-                width: 2.0,
-            }
-            .create_vertices();
-
-            let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
+            render_pass.draw(0..6, 0..1);
         }
 
         let screen_view = screen_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
