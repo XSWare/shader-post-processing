@@ -1,9 +1,11 @@
-#[repr(C)]
+#[repr(C, align(16))]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Globals {
     pub time: f32,
     pub cursor_x: f32,
     pub cursor_y: f32,
+    // WebGL needs 16 byte alignment
+    padding: f32,
 }
 
 pub const BIND_GROUP_LAYOUT: &wgpu::BindGroupLayoutDescriptor = &wgpu::BindGroupLayoutDescriptor {
@@ -26,6 +28,7 @@ impl Globals {
             time: 0.0,
             cursor_x: 0.0,
             cursor_y: 0.0,
+            padding: 0.0,
         }
     }
 }

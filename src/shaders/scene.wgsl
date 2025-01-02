@@ -2,6 +2,8 @@ struct Globals {
     time: f32,
     cursor_x: f32,
     cursor_y: f32,
+    // WebGL needs 16 byte alignment
+    padding: f32,
 }
 @group(0) @binding(0)
 var<uniform> globals: Globals;
