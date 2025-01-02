@@ -1,15 +1,11 @@
-mod camera;
 mod post_processing;
-mod instance;
 mod rectangle;
 mod shader_globals;
 mod texture;
 mod vertex;
 
-use camera::{Camera, CameraUniform};
 use chrono::{DateTime, Utc};
 use post_processing::PostProcessing;
-use instance::{Instance, InstanceRaw};
 use rectangle::Rectangle;
 use shader_globals::Globals;
 use vertex::Vertex;
@@ -38,7 +34,7 @@ pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title("post-processing example")
-        .with_inner_size(winit::dpi::PhysicalSize { width: 1000, height: 500 })
+        .with_inner_size(winit::dpi::PhysicalSize { width: 1000, height: 300 })
         .build(&event_loop)
         .unwrap();
 
@@ -139,17 +135,10 @@ struct State<'a> {
     window: &'a Window,
     render_pipeline: wgpu::RenderPipeline,
     diffuse_bind_group: wgpu::BindGroup,
-    diffuse_texture: texture::Texture,
-    camera: Camera,
-    camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
     start_time: DateTime<Utc>,
     globals: Globals,
     globals_buffer: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
-    instances: Vec<Instance>,
-    instance_buffer: wgpu::Buffer,
     post_processing: PostProcessing,
 }
 
@@ -261,56 +250,9 @@ impl<'a> State<'a> {
             desired_maximum_frame_latency: 2,
         };
 
-        let camera = Camera {
-            // position the camera 1 unit up and 2 units back
-            // +z is out of the screen
-            eye: (0.0, 2.0, 3.8).into(),
-            // have it look at the origin
-            target: (0.0, 0.0, 0.0).into(),
-            // which way is "up"
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
-
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/scene.wgsl"));
 
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("camera_bind_group_layout"),
-        });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
         let start_time = chrono::Utc::now();
-
         let globals = Globals::new();
 
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -330,47 +272,9 @@ impl<'a> State<'a> {
             }],
         });
 
-        use cgmath::prelude::*;
-
-        const NUM_INSTANCES_PER_ROW: u32 = 6;
-        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
-            (NUM_INSTANCES_PER_ROW - 1) as f32 * 0.5,
-            0.0,
-            NUM_INSTANCES_PER_ROW as f32 * 0.5 + 0.5,
-        );
-
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = cgmath::Vector3 {
-                        x: x as f32,
-                        y: 0.0,
-                        z: z as f32,
-                    } - INSTANCE_DISPLACEMENT;
-
-                    let rotation = if position.is_zero() {
-                        // this is needed so an object at (0, 0, 0) won't get scaled to zero
-                        // as Quaternions can affect scale if they're not created correctly
-                        cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-                    } else {
-                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                    };
-
-                    Instance { position, rotation }
-                })
-            })
-            .collect::<Vec<_>>();
-
-        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &globals_bind_group_layout],
+            bind_group_layouts: &[&texture_bind_group_layout, &globals_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -380,25 +284,22 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vertex",
-                buffers: &[
-                    VertexBufferLayout {
-                        array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &[
-                            wgpu::VertexAttribute {
-                                offset: 0,
-                                shader_location: 0,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: size_of::<[f32; 2]>() as wgpu::BufferAddress,
-                                shader_location: 1,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                        ],
-                    },
-                    InstanceRaw::desc(),
-                ],
+                buffers: &[VertexBufferLayout {
+                    array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float32x2,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float32x2,
+                        },
+                    ],
+                }],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -444,17 +345,10 @@ impl<'a> State<'a> {
             size,
             render_pipeline,
             diffuse_bind_group,
-            diffuse_texture,
-            camera,
-            camera_buffer,
-            camera_uniform,
-            camera_bind_group,
             start_time,
             globals,
             globals_buffer,
             globals_bind_group,
-            instances,
-            instance_buffer,
             post_processing,
         }
     }
@@ -522,8 +416,7 @@ impl<'a> State<'a> {
             });
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.globals_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.globals_bind_group, &[]);
 
             let indices = &Rectangle::get_indices();
             let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -533,10 +426,10 @@ impl<'a> State<'a> {
             });
 
             let vertices = Rectangle {
-                top: 0.2,
-                left: -0.5,
-                height: 0.4,
-                width: 1.,
+                top: 1.0,
+                left: -1.0,
+                height: 2.0,
+                width: 2.0,
             }
             .create_vertices();
 
@@ -548,8 +441,7 @@ impl<'a> State<'a> {
 
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw_indexed(0..indices.len() as u32, 0, 0..self.instances.len() as u32);
+            render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
         }
 
         let final_view = output_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
