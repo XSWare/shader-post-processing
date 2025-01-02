@@ -15,7 +15,7 @@ struct VertexOutput {
 fn vertex(
     @builtin(vertex_index) id: u32,
 ) -> VertexOutput {
-    // vertices describe a rectangle that covers the complete screen
+    // vertices describe a rectangle for the image
     var pos = array(
         vec2f(1.0, 1.0),
         vec2f(-1.0, 1.0),

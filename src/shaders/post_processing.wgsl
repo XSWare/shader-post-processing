@@ -55,15 +55,3 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_x = in.uv.x + x;
     return textureSample(t_diffuse, s_diffuse, vec2<f32>(tex_x, in.uv.y));
 }
-
-fn average(srgb: vec3<f32>) -> f32 {
-    return (srgb.x + srgb.y + srgb.z) / 3.0;
-}
-
-fn rainbow(angle: f32) -> vec3<f32> {
-    return vec3<f32>(normalized_sin(angle), normalized_sin(angle + (PI / 3.0)), normalized_sin(angle + (2.0 * PI / 3.0)));
-}
-
-fn normalized_sin(angle: f32) -> f32 {
-    return (sin(angle) + 1.0) / 2;
-}
