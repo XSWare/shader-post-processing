@@ -73,8 +73,7 @@ pub async fn run() {
                             ..
                         } => {
                             if *button == MouseButton::Left && button_state.is_pressed() {
-                                state.current_post_processing_index =
-                                    (state.current_post_processing_index + 1) % state.post_processing_effects.len();
+                                change_post_processing_effect(&mut state);
                             }
                         }
                         WindowEvent::CursorMoved { position, .. } => {
@@ -82,6 +81,21 @@ pub async fn run() {
                             state.globals.cursor_x = (position.x as f32 / size.width as f32) * 2. - 1.;
                             state.globals.cursor_y = (position.y as f32 / size.height as f32) * 2. - 1.;
                         }
+                        WindowEvent::Touch(touch) => match touch.phase {
+                            TouchPhase::Started => state.last_touch_start = chrono::Utc::now(),
+                            TouchPhase::Ended => {
+                                if (chrono::Utc::now() - state.last_touch_start).num_milliseconds() < 500 {
+                                    change_post_processing_effect(&mut state)
+                                }
+                            }
+                            TouchPhase::Moved => {
+                                let position = touch.location;
+                                let size = state.window.inner_size();
+                                state.globals.cursor_x = (position.x as f32 / size.width as f32) * 2. - 1.;
+                                state.globals.cursor_y = (position.y as f32 / size.height as f32) * 2. - 1.;
+                            }
+                            _ => {}
+                        },
                         WindowEvent::CloseRequested
                         | WindowEvent::KeyboardInput {
                             event:
@@ -130,6 +144,10 @@ pub async fn run() {
         .unwrap();
 }
 
+fn change_post_processing_effect(state: &mut State) {
+    state.current_post_processing_index = (state.current_post_processing_index + 1) % state.post_processing_effects.len();
+}
+
 use winit::window::Window;
 
 struct State<'a> {
@@ -149,6 +167,7 @@ struct State<'a> {
     scene: Scene,
     post_processing_effects: Vec<PostProcessing>,
     current_post_processing_index: usize,
+    last_touch_start: DateTime<Utc>,
 }
 
 impl<'a> State<'a> {
@@ -271,6 +290,7 @@ impl<'a> State<'a> {
             scene,
             post_processing_effects,
             current_post_processing_index: 0,
+            last_touch_start: start_time,
         }
     }
 

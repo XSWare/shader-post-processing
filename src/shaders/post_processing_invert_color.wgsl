@@ -51,7 +51,7 @@ var s_diffuse: sampler;
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let pixel = textureSample(t_diffuse, s_diffuse, in.uv);
-    if in.uv.x < (globals.cursor_x + 1) / 2 {
+    if in.uv.x > (globals.cursor_x + 1) / 2 {
         return pixel;
     } else {
         let inverted = invert_color(pixel.xyz);
