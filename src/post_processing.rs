@@ -5,9 +5,7 @@ pub struct PostProcessing {
 }
 
 impl PostProcessing {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, globals_bind_group_layout: &wgpu::BindGroupLayout) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing.wgsl"));
-
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, globals_bind_group_layout: &wgpu::BindGroupLayout, shader: wgpu::ShaderModule) -> Self {
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {

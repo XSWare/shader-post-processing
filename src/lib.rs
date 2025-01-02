@@ -227,7 +227,8 @@ impl<'a> State<'a> {
 
         let scene = Scene::new(&device, &queue, config.format, &globals_bind_group_layout);
 
-        let post_processing = PostProcessing::new(&device, config.format, &globals_bind_group_layout);
+        let post_processing_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing_invert_color.wgsl"));
+        let post_processing = PostProcessing::new(&device, config.format, &globals_bind_group_layout, post_processing_shader);
 
         Self {
             window,
