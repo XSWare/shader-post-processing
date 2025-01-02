@@ -66,6 +66,16 @@ pub async fn run() {
             Event::WindowEvent { ref event, window_id } if window_id == state.window.id() => {
                 if !state.input(event) {
                     match event {
+                        WindowEvent::MouseInput {
+                            state: button_state,
+                            button,
+                            ..
+                        } => {
+                            if *button == MouseButton::Left && button_state.is_pressed() {
+                                state.current_post_processing_index =
+                                    (state.current_post_processing_index + 1) % state.post_processing_effects.len();
+                            }
+                        }
                         WindowEvent::CursorMoved { position, .. } => {
                             let size = state.window.inner_size();
                             state.globals.cursor_x = (position.x as f32 / size.width as f32) * 2. - 1.;
@@ -136,7 +146,8 @@ struct State<'a> {
     globals_buffer: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
     scene: Scene,
-    post_processing: PostProcessing,
+    post_processing_effects: Vec<PostProcessing>,
+    current_post_processing_index: usize,
 }
 
 impl<'a> State<'a> {
@@ -227,8 +238,23 @@ impl<'a> State<'a> {
 
         let scene = Scene::new(&device, &queue, config.format, &globals_bind_group_layout);
 
-        let post_processing_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing_invert_color.wgsl"));
-        let post_processing = PostProcessing::new(&device, config.format, &globals_bind_group_layout, post_processing_shader);
+        let mut post_processing_effects = Vec::new();
+
+        let invert_color_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing_invert_color.wgsl"));
+        post_processing_effects.push(PostProcessing::new(
+            &device,
+            config.format,
+            &globals_bind_group_layout,
+            invert_color_shader,
+        ));
+
+        let wave_distortion_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing_wave_distortion.wgsl"));
+        post_processing_effects.push(PostProcessing::new(
+            &device,
+            config.format,
+            &globals_bind_group_layout,
+            wave_distortion_shader,
+        ));
 
         Self {
             window,
@@ -242,7 +268,8 @@ impl<'a> State<'a> {
             globals_buffer,
             globals_bind_group,
             scene,
-            post_processing,
+            post_processing_effects,
+            current_post_processing_index: 0,
         }
     }
 
@@ -293,8 +320,13 @@ impl<'a> State<'a> {
         self.scene.render_pass(&mut encoder, &in_memory_view, &self.globals_bind_group)?;
 
         // second render pass - apply post processing effects to the scene
-        self.post_processing
-            .render_pass(&self.device, &mut encoder, &in_memory_view, &screen_view, &self.globals_bind_group)?;
+        self.post_processing_effects[self.current_post_processing_index].render_pass(
+            &self.device,
+            &mut encoder,
+            &in_memory_view,
+            &screen_view,
+            &self.globals_bind_group,
+        )?;
 
         self.queue.submit(std::iter::once(encoder.finish()));
         screen.present();
