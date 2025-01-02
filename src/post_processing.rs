@@ -2,7 +2,7 @@ use wgpu::util::DeviceExt;
 
 use crate::shader_globals::{self, Globals};
 
-pub struct FullscreenEffect {
+pub struct PostProcessing {
     render_pipeline: wgpu::RenderPipeline,
     globals_buffer: wgpu::Buffer,
     globals_bind_group: wgpu::BindGroup,
@@ -10,9 +10,9 @@ pub struct FullscreenEffect {
     sampler: wgpu::Sampler,
 }
 
-impl FullscreenEffect {
+impl PostProcessing {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, globals: &Globals) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/fullscreen_shader.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/post_processing.wgsl"));
 
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("globals buffer"),
@@ -66,13 +66,13 @@ impl FullscreenEffect {
         });
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Fullscreen Render Pipeline Layout"),
+            label: Some("post processing render pipeline layout"),
             bind_group_layouts: &[&globals_bind_group_layout, &texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("post processing render pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -133,7 +133,7 @@ impl FullscreenEffect {
         dst_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Fullscreen Render Pass"),
+            label: Some("post processing render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &dst_view,
                 resolve_target: None,

@@ -1,5 +1,5 @@
 mod camera;
-mod fullscreen_effect;
+mod post_processing;
 mod instance;
 mod rectangle;
 mod shader_globals;
@@ -8,7 +8,7 @@ mod vertex;
 
 use camera::{Camera, CameraUniform};
 use chrono::{DateTime, Utc};
-use fullscreen_effect::FullscreenEffect;
+use post_processing::PostProcessing;
 use instance::{Instance, InstanceRaw};
 use rectangle::Rectangle;
 use shader_globals::Globals;
@@ -150,7 +150,7 @@ struct State<'a> {
     globals_bind_group: wgpu::BindGroup,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
-    fullscreen_effect: FullscreenEffect,
+    post_processing: PostProcessing,
 }
 
 impl<'a> State<'a> {
@@ -278,7 +278,7 @@ impl<'a> State<'a> {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/shader.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/scene.wgsl"));
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -433,7 +433,7 @@ impl<'a> State<'a> {
             cache: None,
         });
 
-        let fullscreen_effect = FullscreenEffect::new(&device, config.format, &globals);
+        let post_processing = PostProcessing::new(&device, config.format, &globals);
 
         Self {
             window,
@@ -455,7 +455,7 @@ impl<'a> State<'a> {
             globals_bind_group,
             instances,
             instance_buffer,
-            fullscreen_effect,
+            post_processing,
         }
     }
 
@@ -479,7 +479,7 @@ impl<'a> State<'a> {
     fn update(&mut self) {
         self.globals.time = (chrono::Utc::now() - self.start_time).num_milliseconds() as f32 / 1000.;
         self.queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&self.globals));
-        self.fullscreen_effect.update(&self.queue, &self.globals);
+        self.post_processing.update(&self.queue, &self.globals);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -554,7 +554,7 @@ impl<'a> State<'a> {
 
         let final_view = output_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
 
-        self.fullscreen_effect
+        self.post_processing
             .render_pass(&self.device, &mut encoder, &intermediate_view, &final_view)?;
 
         // submit will accept anything that implements IntoIter
