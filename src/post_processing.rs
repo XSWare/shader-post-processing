@@ -109,7 +109,7 @@ impl PostProcessing {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("post processing render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &dst_view,
+                view: dst_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

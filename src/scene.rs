@@ -13,7 +13,7 @@ impl Scene {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/scene.wgsl"));
 
         let diffuse_bytes = include_bytes!("xsware_brand.png");
-        let diffuse_texture = crate::texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "xsware_brand.png");
+        let diffuse_texture = crate::texture::Texture::from_bytes(device, queue, diffuse_bytes, "xsware_brand.png");
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -117,7 +117,7 @@ impl Scene {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &dst_view,
+                view: dst_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
