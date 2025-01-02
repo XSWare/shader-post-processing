@@ -9,8 +9,8 @@
     <style>
         canvas {
             background-color: black;
-            width: 1000px;
-            height: 300px;
+            width: 800px;
+            height: 220px;
             align-content: center;
         }
     </style>
@@ -18,15 +18,13 @@
 
 <body id="wasm-example">
     <h1>Post processing example</h1>
-    <b>Hover the image with your mouse pointer to apply the effect. Click the image to change the effect.</b>
-    <br/>
-  <script type="module">
-      import init from "./pkg/shader_post_processing_example.js";
-      init().then(() => {
-          console.log("WASM Loaded");
-      });
-  </script>
+    <h3>Hover the image with your mouse pointer to apply the effect. Click the image to change the effect.</h3>
+    <script type="module">
+        import init from "./pkg/shader_post_processing_example.js";
+        init().then(() => {
+            console.log("WASM Loaded");
+        });
+    </script>
 </body>
 
 </html>
- 

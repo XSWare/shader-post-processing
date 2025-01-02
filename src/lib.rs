@@ -29,10 +29,12 @@ pub async fn run() {
         }
     }
 
+    let size = winit::dpi::PhysicalSize { width: 800, height: 220 };
+
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
-        .with_title("post-processing example")
-        .with_inner_size(winit::dpi::PhysicalSize { width: 1000, height: 300 })
+        .with_title("Post processing example")
+        .with_inner_size(size)
         .build(&event_loop)
         .unwrap();
 
@@ -40,8 +42,7 @@ pub async fn run() {
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        let _ = window.request_inner_size(PhysicalSize::new(1000, 800));
+        let _ = window.request_inner_size(size);
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
