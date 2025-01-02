@@ -377,19 +377,21 @@ impl<'a> State<'a> {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
-        let output_texture = &output.texture;
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+        let screen = self.surface.get_current_texture()?;
+        let screen_texture = &screen.texture;
+        
+        // create a view that only lives in memory and is not displayed on the screen
+        let in_memory_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("initial render pass canvas"),
-            dimension: output_texture.dimension(),
-            format: output_texture.format(),
-            mip_level_count: output_texture.mip_level_count(),
-            sample_count: output_texture.sample_count(),
-            size: output_texture.size(),
-            usage: output_texture.usage() | wgpu::TextureUsages::TEXTURE_BINDING,
+            dimension: screen_texture.dimension(),
+            format: screen_texture.format(),
+            mip_level_count: screen_texture.mip_level_count(),
+            sample_count: screen_texture.sample_count(),
+            size: screen_texture.size(),
+            usage: screen_texture.usage() | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
-        let intermediate_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let in_memory_view = in_memory_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -398,7 +400,7 @@ impl<'a> State<'a> {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &intermediate_view,
+                    view: &in_memory_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -444,14 +446,14 @@ impl<'a> State<'a> {
             render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
         }
 
-        let final_view = output_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
+        let screen_view = screen_texture.create_view(&wgpu::TextureViewDescriptor { ..Default::default() });
 
         self.post_processing
-            .render_pass(&self.device, &mut encoder, &intermediate_view, &final_view)?;
+            .render_pass(&self.device, &mut encoder, &in_memory_view, &screen_view)?;
 
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        screen.present();
 
         Ok(())
     }

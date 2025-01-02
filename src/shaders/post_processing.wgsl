@@ -22,6 +22,7 @@ struct VertexOutput {
 fn vertex(
     @builtin(vertex_index) id: u32,
 ) -> VertexOutput {
+    // vertices describe a rectangle that covers the complete screen
     var pos = array(
         vec2f(1.0, 1.0),
         vec2f(-1.0, 1.0),
@@ -31,6 +32,7 @@ fn vertex(
         vec2f(1.0, -1.0),
     );
 
+    // provide a texture mapping that covers the rectangle created above
     var uv = array(
         vec2f(1.0, 0.0),
         vec2f(0.0, 0.0),
